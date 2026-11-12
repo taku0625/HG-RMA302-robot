@@ -1,6 +1,6 @@
 # 電源・表示コントローラ
 
-`/home/tako/src/pico_esp32_bridge` から、RP2040電源制御とESP32表示パネルに必要な部分を取り込みました。元プロジェクトには変更を加えません。取り込み時の出典とSHA-256は `import-manifest.json` です。一般UARTブリッジ、書き込み専用ブリッジ、旧診断ファームウェアは含みません。
+`/home/tako/src/pico_esp32_bridge` から、RP2040電源制御とESP32表示パネルに必要な部分を取り込みました。取り込み元の個人PCパスは履歴情報です。このリポジトリ内のソースから開発できます。取り込み時の出典とSHA-256は `import-manifest.json` です。一般UARTブリッジ、書き込み専用ブリッジ、旧診断ファームウェアは含みません。
 
 - `pico_power_master/`: INA226測定、SSR、物理ボタン、WS2812、パネル通信、Pythonホスト通信。
 - `esp32_panel_slave/`: 既存の表示・キー処理。通信形式は元の電源コントローラと同じで、今回のホスト統合によるESP32の再書き込みは不要です。
@@ -35,7 +35,7 @@
 }
 ```
 
-`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。`config.local.json` は新Picoファームウェア導入済みのこの機体用に、固有番号を設定し `enabled=true` にしています。配布例では無効です。
+`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。`config.local.json` はGitに含まれない機体別設定です。Picoを使う場合は接続した個体の固有番号と `enabled=true` を設定してください。配布例では無効です。上の固有番号は過去の実機の例です。
 
 ```bash
 # 電源測定・Statusを見るだけ。SSR・LED・セッションを変更しない
@@ -90,13 +90,13 @@ Pythonの制御ループ自身が100 msごとにheartbeatを送り、ACKを300 m
 
 ## ビルド
 
-元プロジェクトを参照せず、このツリーからビルドできます。Pico SDK、ARM toolchain、CMake、picotoolを別途インストールしてください。このPCの設定例です。
+元プロジェクトを参照せず、このツリーからビルドできます。Pico SDK、ARM toolchain、CMake、picotoolを別途インストールしてください。インストールした各ツールの実際のパスを指定します。以下の環境変数には、それぞれSDK、toolchain、picotoolのCMake設定ディレクトリを設定してください。これらのツールはクラウドの標準Python環境には導入していません。
 
 ```bash
 python3 tools/build_embedded.py \
-  --sdk /home/tako/.pico-sdk/sdk/2.3.1 \
-  --toolchain /home/tako/.pico-sdk/toolchain/15_2_Rel1 \
-  --picotool-dir /home/tako/.pico-sdk/picotool/2.3.1/picotool \
+  --sdk "$PICO_SDK_PATH" \
+  --toolchain "$PICO_TOOLCHAIN_PATH" \
+  --picotool-dir "$picotool_DIR" \
   --with-esp32
 ```
 
@@ -121,7 +121,9 @@ Pico書き込み後、走行プログラムを終了してから実行します�
 
 出力フォルダは新しい名前を指定してください。この試験だけでは実負荷・物理ボタンによるON・SSR接点の実際の遮断性能を確認したことにはなりません。
 
-## この機体への導入記録（2026-11-08）
+## 過去の機体への導入記録（2026-11-08）
+
+以下は当時の実機での記録です。記載の成果物はGitに含まれず、現在接続されている機体のファームウェアを保証するものではありません。
 
 Pico固有番号 `DE610441238C2E35` に統合版UF2を書き込み、picotoolの読み戻し検証が成功しました。ESP32の表示通信は互換のため、ESP32・左右ESCのファームウェアは変更していません。
 
@@ -135,6 +137,6 @@ BOOTSELへはアプリのUSB固有番号を指定して `picotool reboot -u -f` 
 
 ### モード表示対応版（同日更新）
 
-現在の導入版は `drive_modes=1` に対応します。UF2 SHA-256は `05687f73a720474dcd58f4af191db9887ab02f91dc33e0a5ad549aa551444471` です。旧版のプログラムは `artifacts/hardware/2026-11-08/imu/pico-before-modes.uf2`、書き込み・実機検証記録は同じ `imu/` フォルダです。
+この記録時点の導入版は `drive_modes=1` に対応します。UF2 SHA-256は `05687f73a720474dcd58f4af191db9887ab02f91dc33e0a5ad549aa551444471` です。旧版のプログラムは `artifacts/hardware/2026-11-08/imu/pico-before-modes.uf2`、書き込み・実機検証記録は同じ `imu/` フォルダです。
 
 模擬Xboxロゴ入力でtank/joystickの往復を実際のホスト制御ループへ通し、PicoのStatusで末尾LEDが水色／橙へ変わることを確認しました。WT61の静止校正と連続受信、B/Start・通信断監視も通過しています。両ESCのPWMとSSRは最後にOFF、回転指令は送っていません。接地走行のYawゲイン調整・実際の右旋回によるIMU符号確認は未実施です。
