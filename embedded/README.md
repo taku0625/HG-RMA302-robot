@@ -35,7 +35,7 @@
 }
 ```
 
-`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。`config.local.json` は新Picoファームウェア導入済みのこの機体用に、固有番号を設定し `enabled=true` にしています。配布例では無効です。
+`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。この機体用の `config.robot.example.json` には固有番号と `enabled=true` を設定しています。`config.local.json` がなければ [初回設定手順](../README.md#1-初回だけ環境と機体設定を用意する) で作成してください。汎用の `config.example.json` では無効です。
 
 ```bash
 # 電源測定・Statusを見るだけ。SSR・LED・セッションを変更しない
