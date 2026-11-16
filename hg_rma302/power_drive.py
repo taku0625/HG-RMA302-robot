@@ -56,7 +56,7 @@ class _Finished(Exception):
     pass
 
 
-def run_powered(config, *, seconds=None, logger=None):
+def run_powered(config, *, seconds=None, logger=None, gamepad_factory=None):
     from .cli import report_esc_events
     pair=power=pad=imu=yaw=None
     controller=None
@@ -98,7 +98,7 @@ def run_powered(config, *, seconds=None, logger=None):
         previous_reset=sample.reset
         if sample.estop or output.reason in INPUT_FAILURES:
             emergency()
-        elif reset_edge and neutral and power and power.estopped:
+        elif reset_edge and neutral and sample.deadman and power and power.estopped:
             power.clear()
         # Process brief stop/neutral frames before the next frame, preserving
         # B presses even if press and release arrive in the same USB read.
@@ -130,10 +130,13 @@ def run_powered(config, *, seconds=None, logger=None):
         power.notices.clear()
 
     try:
-        pad=Gamepad(config.gamepad,event_timeout_s=config.drive.input_timeout_s)
+        pad=(gamepad_factory or Gamepad)(config.gamepad,event_timeout_s=config.drive.input_timeout_s)
         controller=DriveController(config.drive,require_input_updates=pad.requires_event_updates)
-        device=pad.device
-        print(f'Gamepad: {device.name} {device.path}',flush=True)
+        if hasattr(pad, 'source_description'):
+            print(f'Input: {pad.source_description}',flush=True)
+        else:
+            device=pad.device
+            print(f'Gamepad: {device.name} {device.path}',flush=True)
         power=PowerLink(config.power)
         if config.imu.enabled:
             imu=ImuLink(config.imu);yaw=YawFeedback(imu,config.drive)
@@ -144,7 +147,10 @@ def run_powered(config, *, seconds=None, logger=None):
         print('中立でStart=非常停止解除（SSRはOFFのまま）。駆動電源は物理ボタンで投入。約5 VはUSB給電待機。',flush=True)
         print('LED本体=走行状態、末尾6灯=タンク水色/ジョイスティック橙、非常停止は全灯赤。Ctrl-C=SSR OFF。',flush=True)
         if logger:
-            logger.record('gamepad',name=device.name,path=device.path)
+            if hasattr(pad, 'source_description'):
+                logger.record('gamepad',source=pad.source_description,requires_event_updates=True)
+            else:
+                logger.record('gamepad',name=device.name,path=device.path)
             logger.record('power_connected',serial=config.power.serial,path=power.port.path)
         while True:
             try:

@@ -14,7 +14,7 @@ from test_power import Board
 
 
 class PoweredLoopTests(unittest.TestCase):
-    def scenario(self, input_at, board_at, *, duration=1.5, preflight=.08, failure=None, imu_reason=None):
+    def scenario(self, input_at, board_at, *, duration=1.5, preflight=.08, failure=None, imu_reason=None, ros_source=False):
         clock=SimpleNamespace(now=0.)
         def sleep(n): clock.now+=max(n,.00001)
         timeline=[]; pairs=[]; links=[]; rows=[]
@@ -35,7 +35,8 @@ class PoweredLoopTests(unittest.TestCase):
                 frames=input_at(clock.now,self.last)
                 self.last=clock.now
                 if not isinstance(frames,list):frames=[frames]
-                frames=[replace(f,last_device_check_at=clock.now) for f in frames]
+                frames=[replace(f,last_device_check_at=clock.now,
+                                last_input_at=clock.now if ros_source else f.last_input_at) for f in frames]
                 self.state=frames[-1]
                 return frames
             def close(self):self.closed=True
@@ -78,6 +79,10 @@ class PoweredLoopTests(unittest.TestCase):
                 rows.append((now,out,kw['power'].snapshot(now)))
             def record(self,*a,**kw):pass
             def warning(self):return None
+        if ros_source:
+            del Pad.device
+            Pad.requires_event_updates=True
+            Pad.source_description='ROS /joy test source'
         pad=Pad();caught=None
         cfg=Config(DriveSettings(),power=PowerSettings(enabled=True,port='/fake/pico'),
                    imu=ImuSettings(enabled=imu_reason is not None,port='/fake/imu'))
@@ -87,7 +92,8 @@ class PoweredLoopTests(unittest.TestCase):
              patch('hg_rma302.power_drive.PowerLink',side_effect=power_factory), \
              patch('hg_rma302.power_drive.EscPair',Pair),patch('hg_rma302.power_drive.ImuLink',return_value=fake_imu), \
              patch('sys.stdout',new=stdout):
-            try:run_powered(cfg,seconds=duration,logger=Logger())
+            try:run_powered(cfg,seconds=duration,logger=Logger(),
+                            gamepad_factory=(lambda *a,**kw:pad) if ros_source else None)
             except Exception as exc:caught=exc
         if imu_reason:self.assertTrue(fake_imu.closed)
         self.assertTrue(pad.closed)
@@ -107,6 +113,23 @@ class PoweredLoopTests(unittest.TestCase):
         self.assertGreater(min(moving),1.05)
         self.assertTrue(any(out.reason=='USB_ONLY' for _,out,_ in rows))
         self.assertEqual(link.port.relay,0)
+
+    def test_ros_deadman_stops_pwm_keeps_ssr_and_requires_neutral(self):
+        def inputs(now,last):
+            return InputState(left_stick=int(.5<now<.85 or now>1.05),
+                              deadman=not(.7<now<.8))
+        def board(b,now):
+            if now<.65:b.relay=1
+        events,rows,link,exc,text=self.scenario(inputs,board,ros_source=True)
+        self.assertIsNone(exc)
+        self.assertIn('ROS /joy',text)
+        self.assertTrue(any(out.reason=='DEADMAN_RELEASED' and power['ssr_command_on']
+                            for _,out,power in rows))
+        self.assertFalse(any(.7<t<1.05 and d=='esc' and o!='close' and o.enabled and o.left_rpm
+                             for t,d,o in events))
+        self.assertTrue(any(t>1.05 and d=='esc' and o!='close' and o.enabled and o.left_rpm
+                            for t,d,o in events))
+        self.assertEqual(link.port.relay,0)  # Normal final cleanup still switches SSR off.
 
     def test_brief_b_press_during_slow_preflight_latches_and_start_does_not_power_on(self):
         def inputs(now,last):

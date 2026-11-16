@@ -62,6 +62,19 @@ uv run --frozen hg-cart drive --config config.local.json --live --log
 
 USB機器につながっていないクラウド環境では、実機走行を確認できません。
 
+## ROS 2 Jazzy（work ブランチ）
+
+このチェックアウトは `hg_rma302_driver` という colcon パッケージとしても使えます。
+`misachiya_ws/scripts/link_hg_driver.sh` でワークスペースへリンクし、両パッケージを
+ビルドすると `ros2 launch misachiya_bringup robot.launch.py` で joy と一緒に起動します。
+既定は表示のみで、実走行には `live:=true config_file:=/absolute/path/to/config.local.json`
+を指定します。詳しい準備・操作手順は `misachiya_ws/README.md` を参照してください。
+
+ROS 入力は `sensor_msgs/msg/Joy` で、既定は `joy_linux_node` の Linux XInput 配列です。
+LB を押して操作し、LB 解放・入力途絶で停止、中立から再開します。B/Start、
+電源・IMU 監視、終了時の停止は既存の制御ループを使います。
+従来の `uv run hg-cart ...` の入力・操作方法は変わりません。
+
 ## コントローラーの操作
 
 起動モードは設定ファイルの `drive.control_mode` で決まります。配布例は `joystick` です。Xbox／Guideボタンがある機種では、押すたびにジョイスティックとタンクを切り替えます。切替後は全操作を中立へ戻してください。Guideボタンのない機種では設定を変更して再起動します。
@@ -75,7 +88,7 @@ USB機器につながっていないクラウド環境では、実機走行を�
 | 十字キー上下 | 前進・後退 | 前進・後退 |
 | 十字キー左右 | その場旋回 | その場旋回 |
 
-LBを押す必要はありません。十字キーはスティックより優先し、斜め入力は停止です。十字キーを離すと、その時点のスティック操作へ戻ります。
+従来の `hg-cart drive` ではLBを押す必要はありません。ROSのjoy操作ではLBの保持が必要です。十字キーはスティックより優先し、斜め入力は停止です。十字キーを離すと、その時点のスティック操作へ戻ります。
 
 配布例のスティック上限は30 RPM、十字キー上下は50 RPM、左右は各輪25 RPMです。機体別ファイルの値は異なる場合があります。8 RPM未満の連続駆動には対応しません。
 

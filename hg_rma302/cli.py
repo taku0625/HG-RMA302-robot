@@ -33,7 +33,7 @@ def report_esc_events(pair, logger=None):
         pair.fault_events.clear()
 
 
-def run(config, *, live=False, seconds=None, log_path=None):
+def run(config, *, live=False, seconds=None, log_path=None, gamepad_factory=None):
     # Open the log before hardware, and drain it only after the ESCs are stopped.
     logger = DriveLog(log_path) if log_path is not None else None
     result = "finished"
@@ -45,9 +45,9 @@ def run(config, *, live=False, seconds=None, log_path=None):
                           live=live, seconds=seconds, config=asdict(config))
         if live and config.power.enabled:
             from .power_drive import run_powered
-            run_powered(config, seconds=seconds, logger=logger)
+            run_powered(config, seconds=seconds, logger=logger, gamepad_factory=gamepad_factory)
         else:
-            _run(config, live=live, seconds=seconds, logger=logger)
+            _run(config, live=live, seconds=seconds, logger=logger, gamepad_factory=gamepad_factory)
     except BaseException as exc:
         result = "error"
         if logger:
@@ -64,7 +64,7 @@ def run(config, *, live=False, seconds=None, log_path=None):
                 print(f"LOG保存完了: {logger.path}", flush=True)
 
 
-def _run(config, *, live=False, seconds=None, logger=None):
+def _run(config, *, live=False, seconds=None, logger=None, gamepad_factory=None):
     pair = None
     gamepad = None
     output = None
@@ -79,14 +79,19 @@ def _run(config, *, live=False, seconds=None, logger=None):
 
     previous_handlers = {sig: signal.signal(sig, stop_signal) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
-        gamepad = Gamepad(config.gamepad, event_timeout_s=config.drive.input_timeout_s)
+        gamepad = (gamepad_factory or Gamepad)(config.gamepad, event_timeout_s=config.drive.input_timeout_s)
         controller = DriveController(config.drive, require_input_updates=gamepad.requires_event_updates)
-        device = gamepad.device
-        print(f"Gamepad: {device.name}  {device.path}  USB={device.info.vendor:04x}:{device.info.product:04x}", flush=True)
-        if logger:
-            logger.record("gamepad", name=device.name, path=device.path,
-                          usb_id=f"{device.info.vendor:04x}:{device.info.product:04x}",
-                          requires_event_updates=gamepad.requires_event_updates)
+        if hasattr(gamepad, 'source_description'):
+            print(f"Input: {gamepad.source_description}", flush=True)
+            if logger:
+                logger.record("gamepad", source=gamepad.source_description, requires_event_updates=True)
+        else:
+            device = gamepad.device
+            print(f"Gamepad: {device.name}  {device.path}  USB={device.info.vendor:04x}:{device.info.product:04x}", flush=True)
+            if logger:
+                logger.record("gamepad", name=device.name, path=device.path,
+                              usb_id=f"{device.info.vendor:04x}:{device.info.product:04x}",
+                              requires_event_updates=gamepad.requires_event_updates)
         if live and config.imu.enabled:
             from .imu import ImuLink, YawFeedback
             imu=ImuLink(config.imu);yaw=YawFeedback(imu,config.drive)
@@ -118,7 +123,9 @@ def _run(config, *, live=False, seconds=None, logger=None):
         print(f"十字キーは両輪の始動完了を待って加速し、速度差を補正します。"
               f"指令平滑化 {config.drive.dpad_smoothing_s:g} 秒。", flush=True)
         print(f"スティック加速の平滑化 {config.drive.stick_smoothing_s:g} 秒。減速・中立・反転は平滑化で待たせません。", flush=True)
-        if gamepad.requires_event_updates:
+        if hasattr(gamepad, 'source_description'):
+            print(f"ROS joy: LBを押して操作。受信が{config.drive.input_timeout_s:g}秒途絶えると停止。再開前に中立へ。", flush=True)
+        elif gamepad.requires_event_updates:
             print("無線ゲームパッド: 起動時は中立でStartを押して離して入力を更新してください。", flush=True)
             print(f"入力が{config.drive.input_timeout_s:g}秒変化しないと停止します。復帰は両スティック中立・十字キー解放から。", flush=True)
         else:

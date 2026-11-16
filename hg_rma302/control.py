@@ -89,6 +89,7 @@ class InputState:
     left_x: float = 0.0
     right_x: float = 0.0
     mode_toggle: bool = False  # Xbox/Guide button, rising edge only.
+    deadman: bool = True  # ROS hold-to-drive; legacy evdev behavior stays enabled.
 
 
 @dataclass(frozen=True)
@@ -217,7 +218,8 @@ class DriveController:
             self.estop_latched = True
         if not sample.connected:
             return self._stop("DISCONNECTED")
-        if (not all(math.isfinite(x) for x in (sample.left_stick, sample.right_stick, sample.left_x, sample.right_x, now))
+        if (type(sample.deadman) is not bool
+                or not all(math.isfinite(x) for x in (sample.left_stick, sample.right_stick, sample.left_x, sample.right_x, now))
                 or any(type(x) is not int or x not in (-1, 0, 1) for x in (sample.dpad_x, sample.dpad_y))):
             return self._stop("INVALID_INPUT")
         checked_at = sample.last_input_at if self.require_input_updates else sample.last_device_check_at
@@ -228,10 +230,12 @@ class DriveController:
             return self._stop("LOOP_TIMEOUT")
         neutral = controls_neutral(sample,cfg)
         if self.estop_latched:
-            if reset_pressed and not sample.estop and neutral:
+            if reset_pressed and not sample.estop and neutral and sample.deadman:
                 self.estop_latched = False
             else:
                 return self._stop("STOP_LATCHED")
+        if not sample.deadman:
+            return self._stop("DEADMAN_RELEASED")
         if mode_pressed:
             self.mode = "joystick" if self.mode == "tank" else "tank"
             return self._stop("MODE_CHANGED")
