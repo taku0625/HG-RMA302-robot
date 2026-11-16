@@ -22,6 +22,11 @@
 
 ## Pythonでの利用
 
+ホスト側コードは `misachiya_ws/src/misachiya_controller` に移しました。
+この節の `uv run hg-cart ...` はそのディレクトリで実行してください。
+`config.local.json` は既存ファイルの絶対パスを指定することもできます。
+
+
 トップレベルJSONに次の設定を追加します。固有番号は `uv run hg-cart devices` で確認できます。
 
 ```json
@@ -35,7 +40,7 @@
 }
 ```
 
-`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。`config.local.json` はGitに含まれない機体別設定です。Picoを使う場合は接続した個体の固有番号と `enabled=true` を設定してください。配布例では無効です。上の固有番号は過去の実機の例です。
+`serial` 指定時はUSB ID 2e8a:000aと固有番号の両方で特定します。見つからなくても古いポート番号へフォールバックしません。`power` を省略／無効にした旧設定ではESC単独動作のままで、SSR停止は使えません。`config.local.json` はGitに含まれない機体別設定です。移行先の `config.robot.example.json` には機体の固有番号と `enabled=true` を設定しています。初回設定は [controllerの手順](https://github.com/taku0625/misachiya_ws/blob/work/src/misachiya_controller/README.md) を参照してください。汎用の `config.example.json` では無効です。
 
 ```bash
 # 電源測定・Statusを見るだけ。SSR・LED・セッションを変更しない
@@ -103,7 +108,6 @@ python3 tools/build_embedded.py \
 `--with-esp32` にはPlatformIO Coreとespressif32@6.12.0が必要です。省略すればPicoだけビルドします。出力は `artifacts/firmware/power-controller/` のUF2、ELF、任意のESP32イメージとSHA-256付きmanifestです。ビルドスクリプト自体は機体を書き換えません。
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v
 python3 -m unittest discover -s embedded/tests -v
 ```
 
@@ -114,6 +118,7 @@ Pico書き込み前には走行プログラムを終了し、両ESC停止とSSR 
 Pico書き込み後、走行プログラムを終了してから実行します。実際の制御ループへ中立・B・Startだけを入力し、ESCへの回転・armコマンドは検証用ポートでも拒否します。SSR OFF、停止保持解除、heartbeatを止めた場合のラッチ、最後の両PWM OFFを記録します。SSRをONにはしません。
 
 ```bash
+cd /path/to/misachiya_ws/src/misachiya_controller
 .venv/bin/python tools/verify_power_standby.py \
   --config config.local.json --serial DE610441238C2E35 \
   --output artifacts/hardware/power-standby-new
